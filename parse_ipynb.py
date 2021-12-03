@@ -1,14 +1,7 @@
-import json
 import argparse
 
-
-def from_json(path):
-    """
-    save json data to path
-    """
-    file = open(path, 'r', encoding='utf-8')
-    return json.load(file)
-
+import utils
+from utils import from_json
 
 TOKEN_CLASS = 'Class'
 TOKEN_SPEED = 'Speed'
@@ -43,7 +36,7 @@ class RunTable:
         return table
 
 
-def parse_notebook(path):
+def extract_metrics(path):
 
     json_obj = from_json(path)
     cells = json_obj['cells']
@@ -92,16 +85,11 @@ def parse_notebook(path):
 
         output += "{}\n".format(row)
 
-    to_file(output)
-
-
-def to_file(data):
-    with open('out.csv', 'w') as f:
-        f.write(data)
+    utils.to_file(output)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", action="store", dest="mode")
 
-    parse_notebook('.\\notebooks\\train_sw15_oversample_res.ipynb')
+    extract_metrics('.\\notebooks\\train_sw15_oversample_res.ipynb')
