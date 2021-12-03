@@ -3,8 +3,15 @@ import argparse
 import utils
 from utils import from_json
 
-TOKEN_CLASS = 'Class'
+TOKEN_CLASS = 'Fusing layers...'
 TOKEN_SPEED = 'Speed'
+TOKEN_WANDB = 'Waiting for'
+
+SW_TOP15 = [
+            "bench", "chair", "bus", "bicycle", "motorcycle",
+            "potted_plant", "movable_signage", "truck", "traffic_light", "traffic_sign",
+            "bollard", "pole", "person", "tree_trunk", "car"
+        ]
 
 
 class RunTable:
@@ -36,7 +43,14 @@ class RunTable:
         return table
 
 
-def extract_metrics(path):
+def tokens_in(tokens, text):
+    for token in tokens:
+        if token in text:
+            return True
+    return False
+
+
+def extract_metrics(path, start_tokens=[TOKEN_CLASS], end_tokens=[TOKEN_SPEED, TOKEN_WANDB]):
 
     json_obj = from_json(path)
     cells = json_obj['cells']
@@ -53,43 +67,76 @@ def extract_metrics(path):
                 texts = outputs[0]['text']
                 for text in texts:
                     if is_started:
-                        if TOKEN_SPEED in text:
+                        text = text.strip('\'').strip('\n')
+                        if not text:
+                            continue
+                        if tokens_in(end_tokens, text):
                             is_started = False
                         else:
-                            text = text.strip('\'').strip("\\n")
+                            print(text)
                             tokens = text.split()
-                            run_table.add(tokens[0], tokens[1], tokens[2], tokens[3],
-                                          tokens[4], tokens[5], tokens[6])
+                            if len(tokens) == 7:
+                                run_table.add(tokens[0], tokens[1], tokens[2], tokens[3],
+                                              tokens[4], tokens[5], tokens[6])
                     else:
-                        if TOKEN_CLASS in text:
+                        if tokens_in(start_tokens, text):
                             is_started = True
 
                 if len(run_table.rows) > 0:
                     runs_tables.append(run_table)
 
+    save_by_tables(runs_tables, "out.csv")
+
+
+def save_by_tables(runs_tables, file_out):
     output = ""
+    max_rows = 0
+
+    for run_table in runs_tables:
+        # if len(run_table.rows) > max_rows:
+        #     max_rows = len(run_table.rows)
+        row_str = ""
+        for row in run_table.rows:
+            row_str += "{},\n".format(row)
+        output += "{}\n".format(row_str)
+
+
     # # 1. Normal top to bottom output
     # for run_table in runs_tables:
     #     output += "{}".format(run_table)
     #     # print(run_table)
 
     # 2. mAP5 only for all runs
-    num_rows = len(runs_tables[0].rows)
+    labels = ["all"] + SW_TOP15
 
-    for id in range(num_rows):
-        row = ""
-        for run_id, run_table in enumerate(runs_tables):
-            if run_id == 0:
-                row += "{},".format(run_table.rows[id])
-            row += "{},".format(run_table.rows[id].map5)
+    for label in labels:
+        row_str = "{},".format(label)
+        for table in runs_tables:
+            value = 0
+            for row in table.rows:
+                if row.clazz == label:
+                    value = row.map5
+            row_str += "{},".format(value)
 
-        output += "{}\n".format(row)
+        output += "{}\n".format(row_str)
 
-    utils.to_file(output)
+    # for id in range(max_rows):
+    #     row_str = ""
+    #     for run_id, run_table in enumerate(runs_tables):
+    #
+    #         if run_id == 0:
+    #             row_str += "{},".format(run_table.rows[id])
+    #         print(id, run_table.rows[0], run_table.rows[1])
+    #         row_str += "{},".format(run_table.rows[id].map5)
+    #
+    #     output += "{}\n".format(row_str)
+
+    utils.to_file(output, file_out)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", action="store", dest="mode")
 
-    extract_metrics('.\\notebooks\\train_sw15_oversample_res.ipynb')
+    # extract_metrics('.\\notebooks\\train_sw15r_oversample_res.ipynb')
+    extract_metrics('.\\notebooks\\train_sw15r_b16.ipynb')
