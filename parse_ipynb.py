@@ -1,18 +1,48 @@
 import argparse
+import os
 
 import utils
 from utils import from_json
 
 TOKEN_CLASS = 'Fusing layers...'
+
+TOKEN_RESULTS = 'Results saved to'
 TOKEN_SPEED = 'Speed'
 TOKEN_WANDB = 'Waiting for'
 
+# SW_TOP15 = [
+#             "bench", "chair", "bus", "bicycle", "motorcycle",
+#             "potted_plant", "movable_signage", "truck", "traffic_light", "traffic_sign",
+#             "bollard", "pole", "person", "tree_trunk", "car"
+#         ]
 SW_TOP15 = [
             "bench", "chair", "bus", "bicycle", "motorcycle",
             "potted_plant", "movable_signage", "truck", "traffic_light", "traffic_sign",
             "bollard", "pole", "person", "tree_trunk", "car"
         ]
 
+DB_TOP15 = [
+    # Top 5
+    "alert@Seatbelt",
+    "warning@Engine",
+    "alert@Parking",
+    "warning@Tire",
+    "warning@StabilityOn",
+
+    # Top 10
+    "alert@Brake",
+    "warning@StabilityOff",
+    "warning@Brake",
+    "alert@Steering",
+    "warning@Parking",
+
+    # Top 15
+    "alert@Retaining",
+    "alert@Distance",
+    "warning@ABS",
+    "alert@Coolant",
+    "warning@Fuel"
+]
 
 class RunTable:
     class Row:
@@ -50,7 +80,7 @@ def tokens_in(tokens, text):
     return False
 
 
-def extract_metrics(path, start_tokens=[TOKEN_CLASS], end_tokens=[TOKEN_SPEED, TOKEN_WANDB]):
+def extract_metrics(path, start_tokens=[TOKEN_CLASS], end_tokens=[TOKEN_RESULTS, TOKEN_SPEED, TOKEN_WANDB]):
 
     json_obj = from_json(path)
     cells = json_obj['cells']
@@ -85,7 +115,8 @@ def extract_metrics(path, start_tokens=[TOKEN_CLASS], end_tokens=[TOKEN_SPEED, T
                 if len(run_table.rows) > 0:
                     runs_tables.append(run_table)
 
-    save_by_tables(runs_tables, "out.csv")
+    print("Saving " + os.path.basename(path) + ".csv")
+    save_by_tables(runs_tables, os.path.basename(path) + ".csv")
 
 
 def save_by_tables(runs_tables, file_out):
@@ -107,7 +138,8 @@ def save_by_tables(runs_tables, file_out):
     #     # print(run_table)
 
     # 2. mAP5 only for all runs
-    labels = ["all"] + SW_TOP15
+    # labels = ["all"] + SW_TOP15
+    labels = ["all"] + DB_TOP15
 
     for label in labels:
         row_str = "{},".format(label)
@@ -136,7 +168,9 @@ def save_by_tables(runs_tables, file_out):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", action="store", dest="mode")
+    parser.add_argument("--path_in", action="store", type=str, dest="path_in")
+
+    args = parser.parse_args()
 
     # extract_metrics('.\\notebooks\\train_sw15r_oversample_res.ipynb')
-    extract_metrics('.\\notebooks\\train_sw15r_b16.ipynb')
+    extract_metrics(args.path_in)

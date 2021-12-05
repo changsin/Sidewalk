@@ -8,7 +8,7 @@ from lxml import etree
 import utils
 from utils import glob_files, glob_folders
 
-DATA_ROOT = 'E:\\Sidewalk\\Sidewalk_19009_output_zip\\Sidewalk_19009_output_zip_box\\Sidewalk_19009_output_zip_box_000001_1\\archive\\sw15_train_r'
+DATA_ROOT = 'E:\\Sidewalk\\Sidewalk_19009_output_zip\\Sidewalk_19009_output_zip_box\\archive\\train_over_5c'
 SIDEWALK_CLASSES = ['barricade', 'bench', 'bicycle', 'bollard', 'bus',
                     'car', 'carrier', 'cat', 'chair', 'dog',
                     'fire_hydrant', 'kiosk', 'motorcycle', 'movable_signage', 'parking_meter',
@@ -19,6 +19,42 @@ SIDEWALK_CLASSES = ['barricade', 'bench', 'bicycle', 'bollard', 'bus',
 SW_TOP15 = ["bench", "chair", "bus", "bicycle", "motorcycle",
             "potted_plant", "movable_signage", "truck", "traffic_light", "traffic_sign",
             "bollard", "pole", "person", "tree_trunk", "car"]
+
+DB_CLASSES = [
+                    "alert@Alternator", "alert@Brake", "alert@Coolant",
+                    "alert@Distance", "alert@EngineOil", "alert@EngineOilTemp",
+                    "alert@Parking", "alert@Retaining", "alert@Seatbelt",
+                    "alert@Steering",
+
+                    "warning@ABS", "warning@Brake", "warning@BrakeWear",
+                    "warning@CentralMonitoring", "warning@EPC", "warning@Engine",
+                    "warning@Fuel", "warning@Glow", "warning@Headlamp",
+                    "warning@Lamp", "warning@Parking", "warning@Retaining",
+                    "warning@StabilityOff", "warning@StabilityOn", "warning@Steering",
+                    "warning@TPMS", "warning@Tire", "warning@Washer"]
+
+DB_TOP15 = [
+    # Top 5
+    "alert@Seatbelt",
+    "warning@Engine",
+    "alert@Parking",
+    "warning@Tire",
+    "warning@StabilityOn",
+
+    # Top 10
+    "alert@Brake",
+    "warning@StabilityOff",
+    "warning@Brake",
+    "alert@Steering",
+    "warning@Parking",
+
+    # Top 15
+    "alert@Retaining",
+    "alert@Distance",
+    "warning@ABS",
+    "alert@Coolant",
+    "warning@Fuel"
+]
 
 
 def parse_xml(filename):
@@ -40,12 +76,14 @@ def parse_xml(filename):
             ybr = float(box.attrib['ybr'])
 
             label = box.attrib['label']
-            # wtype = box.xpath('attribute[@name="name"]')[0].text
-            # daynight = box.xpath('attribute[@name="daynight"]')[0].text
-            # visibility = int(box.xpath('attribute[@name="visibility"]')[0].text)
+            if box.xpath('attribute[@name="name"]'):
+                wtype = box.xpath('attribute[@name="name"]')[0].text
+                daynight = box.xpath('attribute[@name="daynight"]')[0].text
+                visibility = int(box.xpath('attribute[@name="visibility"]')[0].text)
 
-            # box = wtype, alertwarning, daynight, visibility, xtl, ytl, xbr, ybr
-            box = label, xtl, ytl, xbr, ybr
+                box = wtype, label, daynight, visibility, xtl, ytl, xbr, ybr
+            else:
+                box = label, xtl, ytl, xbr, ybr
 
             boxes.append(box)
 
@@ -76,23 +114,34 @@ def load_labels(path, file_type='*'):
             height = label[2]
             boxes = label[3]
             for box in boxes:
-                # wtype = box[0]
-                # alertwarning = box[1]
-                # day = box[2]
-                # visibility = box[3]
-                label = box[0]
+                if len(box) == 8:
+                    wtype = box[0]
+                    alertwarning = box[1]
+                    day = box[2]
+                    visibility = box[3]
 
-                xtl = box[1]
-                ytl = box[2]
-                xbr = box[3]
-                ybr = box[4]
+                    label = "{}@{}".format(alertwarning, wtype)
 
-                dfy.append([os.path.basename(file), filename, width, height, label, xtl, ytl, xbr, ybr])
+                    xtl = box[4]
+                    ytl = box[5]
+                    xbr = box[6]
+                    ybr = box[7]
+
+                    dfy.append([os.path.basename(file), filename, width, height, label, xtl, ytl, xbr, ybr])
+                else:
+                    label = box[0]
+
+                    xtl = box[1]
+                    ytl = box[2]
+                    xbr = box[3]
+                    ybr = box[4]
+
+                    dfy.append([os.path.basename(file), filename, width, height, label, xtl, ytl, xbr, ybr])
 
     return np.array(y), np.array(dfy)
 
 
-def count_labels_per_folder(dfyy):
+def count_labels_per_folder(dfyy, clazzes=DB_TOP15, path_out="label_counts.csv"):
     def _count_labels_per_folder():
         dfy = pd.DataFrame.from_records(dfyy)
         dfy.head()
@@ -122,7 +171,7 @@ def count_labels_per_folder(dfyy):
         row += "{},".format(folder_name[10:-4])
     rows += "{}\n".format(row)
 
-    for clazz in SW_TOP15:
+    for clazz in clazzes:
         row = "{},".format(clazz)
         for _, label_counts in label_counts_per_folder:
             value = 0
@@ -141,14 +190,17 @@ def count_labels_per_folder(dfyy):
 
     # class_counts = class_counts[np.argsort(class_counts[:, 1])]
 
-    utils.to_file(rows, 'label_counts.csv')
+    utils.to_file(rows, path_out)
     return rows
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", action="store", dest="mode")
+    parser.add_argument("--path_in", action="store", type=str, dest="path_in")
 
-    y, dfyy = load_labels(DATA_ROOT, file_type='*.xml')
+    args = parser.parse_args()
 
-    count_labels_per_folder(dfyy)
+    y, dfyy = load_labels(args.path_in, file_type='*.xml')
+
+    #E:\SkNetworks_CarDashboard_21036\01.rawData\archive\train_top15\top15
+    count_labels_per_folder(dfyy, clazzes=DB_TOP15, path_out=os.path.basename(args.path_in) + ".csv")
