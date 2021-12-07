@@ -41,6 +41,7 @@ def glob_folders(folder, file_type='*'):
 
 
 def to_file(data, file_name):
+    print("Writing to...{}".format(file_name))
     with open(file_name, 'w') as f:
         f.write(data)
 

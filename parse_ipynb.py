@@ -10,11 +10,6 @@ TOKEN_RESULTS = 'Results saved to'
 TOKEN_SPEED = 'Speed'
 TOKEN_WANDB = 'Waiting for'
 
-# SW_TOP15 = [
-#             "bench", "chair", "bus", "bicycle", "motorcycle",
-#             "potted_plant", "movable_signage", "truck", "traffic_light", "traffic_sign",
-#             "bollard", "pole", "person", "tree_trunk", "car"
-#         ]
 SW_TOP15 = [
             "bench", "chair", "bus", "bicycle", "motorcycle",
             "potted_plant", "movable_signage", "truck", "traffic_light", "traffic_sign",
@@ -80,8 +75,10 @@ def tokens_in(tokens, text):
     return False
 
 
-def extract_metrics(path, start_tokens=[TOKEN_CLASS], end_tokens=[TOKEN_RESULTS, TOKEN_SPEED, TOKEN_WANDB]):
-
+def extract_metrics(path,
+                    clazzes=SW_TOP15,
+                    start_tokens=[TOKEN_CLASS],
+                    end_tokens=[TOKEN_RESULTS, TOKEN_SPEED, TOKEN_WANDB]):
     json_obj = from_json(path)
     cells = json_obj['cells']
 
@@ -103,9 +100,9 @@ def extract_metrics(path, start_tokens=[TOKEN_CLASS], end_tokens=[TOKEN_RESULTS,
                         if tokens_in(end_tokens, text):
                             is_started = False
                         else:
-                            print(text)
                             tokens = text.split()
-                            if len(tokens) == 7:
+                            # TODO: need to have a better logic
+                            if tokens[1].isnumeric() and tokens[2].isnumeric() and len(tokens) == 7:
                                 run_table.add(tokens[0], tokens[1], tokens[2], tokens[3],
                                               tokens[4], tokens[5], tokens[6])
                     else:
@@ -116,21 +113,17 @@ def extract_metrics(path, start_tokens=[TOKEN_CLASS], end_tokens=[TOKEN_RESULTS,
                     runs_tables.append(run_table)
 
     print("Saving " + os.path.basename(path) + ".csv")
-    save_by_tables(runs_tables, os.path.basename(path) + ".csv")
+    save_by_tables(runs_tables, os.path.basename(path) + ".csv", clazzes)
 
 
-def save_by_tables(runs_tables, file_out):
+def save_by_tables(runs_tables, file_out, clazzes=SW_TOP15):
     output = ""
-    max_rows = 0
 
     for run_table in runs_tables:
-        # if len(run_table.rows) > max_rows:
-        #     max_rows = len(run_table.rows)
         row_str = ""
         for row in run_table.rows:
             row_str += "{},\n".format(row)
         output += "{}\n".format(row_str)
-
 
     # # 1. Normal top to bottom output
     # for run_table in runs_tables:
@@ -139,7 +132,7 @@ def save_by_tables(runs_tables, file_out):
 
     # 2. mAP5 only for all runs
     # labels = ["all"] + SW_TOP15
-    labels = ["all"] + DB_TOP15
+    labels = ["all"] + clazzes
 
     for label in labels:
         row_str = "{},".format(label)
@@ -169,8 +162,14 @@ def save_by_tables(runs_tables, file_out):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--path_in", action="store", type=str, dest="path_in")
+    parser.add_argument("--classes", action="store", type=str, dest="classes")
 
     args = parser.parse_args()
 
+    clazzes = SW_TOP15
+    if "dashboard15" == args.classes:
+        clazzes = DB_TOP15
+    print(clazzes)
+
     # extract_metrics('.\\notebooks\\train_sw15r_oversample_res.ipynb')
-    extract_metrics(args.path_in)
+    extract_metrics(args.path_in, clazzes=clazzes)

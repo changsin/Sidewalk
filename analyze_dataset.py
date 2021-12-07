@@ -95,11 +95,19 @@ def parse_xml(filename):
 def load_labels(path, file_type='*'):
     files = glob_files(path, file_type=file_type)
 
-    if files is None:
+    if len(files) == 0:
         folders = glob_folders(path, file_type='*')
         for folder in folders:
+            print('Searching ' + folder)
             files.extend(glob_files(folder, file_type=file_type))
+            sub_folders = glob_folders(folder, file_type='*')
+            for sub_folder in sub_folders:
+                files.extend(glob_files(sub_folder, file_type=file_type))
+
     print(files)
+    if len(files) == 0:
+        print("No files")
+        exit(0)
 
     y = []
     dfy = []
@@ -114,6 +122,10 @@ def load_labels(path, file_type='*'):
             height = label[2]
             boxes = label[3]
             for box in boxes:
+                # TODO: the folder_name needs to be properly formed
+                #       depending on the type of xml files and sub folder structures
+                # folder_name = os.path.basename(os.path.dirname(file))
+                folder_name = os.path.basename(file)[10:-4]
                 if len(box) == 8:
                     wtype = box[0]
                     alertwarning = box[1]
@@ -127,7 +139,7 @@ def load_labels(path, file_type='*'):
                     xbr = box[6]
                     ybr = box[7]
 
-                    dfy.append([os.path.basename(file), filename, width, height, label, xtl, ytl, xbr, ybr])
+                    dfy.append([folder_name, filename, width, height, label, xtl, ytl, xbr, ybr])
                 else:
                     label = box[0]
 
@@ -136,12 +148,12 @@ def load_labels(path, file_type='*'):
                     xbr = box[3]
                     ybr = box[4]
 
-                    dfy.append([os.path.basename(file), filename, width, height, label, xtl, ytl, xbr, ybr])
+                    dfy.append([folder_name, filename, width, height, label, xtl, ytl, xbr, ybr])
 
     return np.array(y), np.array(dfy)
 
 
-def count_labels_per_folder(dfyy, clazzes=DB_TOP15, path_out="label_counts.csv"):
+def count_labels_per_folder(dfyy, clazzes=SW_TOP15, path_out="label_counts.csv"):
     def _count_labels_per_folder():
         dfy = pd.DataFrame.from_records(dfyy)
         dfy.head()
@@ -168,7 +180,7 @@ def count_labels_per_folder(dfyy, clazzes=DB_TOP15, path_out="label_counts.csv")
 
     row = "{},".format("class")
     for folder_name, _ in label_counts_per_folder:
-        row += "{},".format(folder_name[10:-4])
+        row += "{},".format(folder_name)
     rows += "{}\n".format(row)
 
     for clazz in clazzes:
@@ -197,10 +209,17 @@ def count_labels_per_folder(dfyy, clazzes=DB_TOP15, path_out="label_counts.csv")
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--path_in", action="store", type=str, dest="path_in")
+    parser.add_argument("--classes", action="store", type=str, dest="classes")
 
     args = parser.parse_args()
 
     y, dfyy = load_labels(args.path_in, file_type='*.xml')
 
+    path_out = os.path.basename(os.path.dirname(args.path_in))
     #E:\SkNetworks_CarDashboard_21036\01.rawData\archive\train_top15\top15
-    count_labels_per_folder(dfyy, clazzes=DB_TOP15, path_out=os.path.basename(args.path_in) + ".csv")
+
+    clazzes = SW_TOP15
+    if "dashboard15" == args.classes:
+        clazzes = DB_TOP15
+    print(clazzes)
+    count_labels_per_folder(dfyy, clazzes=clazzes, path_out=path_out + ".csv")
